@@ -5,7 +5,7 @@
   :tree="tree"
   :option="option"
   draggable
-  show-checkbox
+  checkable
   :add-node="handleAddNode"
   :load-data="handleLoadData"
   @node-click="handleNodeClick"
