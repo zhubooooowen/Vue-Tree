@@ -4,29 +4,24 @@
       <Tree
         v-if="tree.length"
         ref="tree"
-        children-key="items"
-        id-key="code"
         :tree="tree"
+        :props="props"
         :option="option"
         draggable
-        show-checkbox
-        :add-node="handleAddNode"
-        :load-data="handleLoadData"
+        :expand-keys.sync="expandKeys"
+        :default-active-key="defaultActiveKey"
         @node-click="handleNodeClick"
-        @checked-change="handleCheckedChange"
-        @get-tree-data="getTreeData"
-      />
-    </div>
-    <ul>
-      <li
-        v-for="item in arr"
-        :key="item.code"
-        :draggable="true"
-        @dragstart.stop="() => handleDrag(item)"
+        @toggle-checked="handleToggleChecked"
       >
-        {{ item.name }}
-      </li>
-    </ul>
+        <template #default="{ treeNode }">
+          <span class="tree-name">{{ treeNode.name }}</span>
+          <i
+            class="el-icon-circle-plus-outline"
+            @click.stop="handleAddTreeNode(slotProps.treeNode)"
+          ></i>
+        </template>
+      </Tree>
+    </div>
     <div>
       <el-button @click="handleDeleteTreeNode">删除</el-button>
       <el-button @click="handleUpdateTreeNode">更新</el-button>
@@ -35,9 +30,9 @@
 </template>
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import Tree from "../components/Tree/Tree.vue";
-import { mockData } from "../utils/mock";
-import { createUUID } from "../utils/utils";
+import Tree from "@/components/Tree/Tree.vue";
+import { mockData } from "@/utils/mock";
+import { createUUID } from "@/components/Tree/utils";
 
 @Component({
   components: {
@@ -49,108 +44,126 @@ export default class TreeView extends Vue {
     height: "calc(100vh - 20px)", // 滚动容器的高度
     itemHeight: 36, // 单个item的高度
   };
-  private tree: ITreeData[] = [];
-  private scrollTop = 0;
-  private selectNode = {};
+  private props = {
+    title: "name",
+    children: "items",
+    id: "uuid",
+  };
+  private tree: any[] = [];
   private arr = [
     {
       id: null,
       code: createUUID(),
       name: "child_1",
-      cn: 0,
-      sn: 0,
-      tn: 0,
-      ext: { OP: "1", RT: "datasource", IB: "0" },
+      ext: { OP: "1", RT: "child", IB: "1" },
       items: [],
     },
     {
       id: null,
       code: createUUID(),
       name: "child_2",
-      cn: 0,
-      sn: 0,
-      tn: 0,
-      ext: { OP: "1", RT: "datasource", IB: "0" },
+      ext: { OP: "1", RT: "child", IB: "1" },
       items: [],
     },
   ];
+  private defaultActiveKey = "";
+  private expandKeys: string[] = [];
 
   private created() {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 100; i++) {
+      const uuid = createUUID();
       mockData.items.push({
-        id: null,
-        code: createUUID(),
-        name: `child_${i + 1}`,
-        cn: 0,
-        sn: 0,
-        tn: 0,
-        ext: { OP: "1", RT: "datasource", IB: "0" },
+        uuid,
+        id: uuid,
+        code: uuid,
+        name: uuid,
         items: [],
       });
     }
-    this.tree = [mockData];
+    const treeData = [mockData];
+    this.formatTreeData(treeData);
+    this.tree = treeData;
+    this.defaultActiveKey = treeData[0].uuid;
+    this.expandKeys = [treeData[0].uuid];
+  }
+
+  private formatTreeData(treeData: any[]) {
+    treeData.forEach((node: any) => {
+      node.uuid = createUUID();
+      if (node.items && node.items.length) {
+        this.formatTreeData(node.items);
+      }
+    });
   }
 
   private handleNodeClick(node: ITreeNode) {
-    this.selectNode = node;
     console.log(node);
   }
-  private getTreeData(data: ITreeData) {
-    console.log(data);
-  }
   private handleDeleteTreeNode() {
-    (this.$refs.tree as any).deleteTreeNode();
+    (this.$refs.tree as Tree).deleteTreeNode();
   }
   private handleUpdateTreeNode() {
-    (this.$refs.tree as any).updateTreeNode({ name: "朱博文" });
+    (this.$refs.tree as Tree).updateActiveTreeNode({ name: "朱博文" });
   }
-  private handleAddNode(node: ITreeNode, callback: Function) {
-    const item = {
-      ...node,
-      code: createUUID(),
+  private handleAddTreeNode(parentNode: ITreeNode) {
+    const uuid = createUUID();
+    const node = {
+      id: uuid,
       name: "未命名",
     };
-    callback(item);
+    (this.$refs.tree as Tree).addTreeNode(parentNode, node);
   }
   private handleLoadData(node: ITreeNode, callback: Function) {
-    const { code } = node;
     setTimeout(() => {
       const arr = [];
       for (let i = 0; i < 2; i++) {
+        const uuid = createUUID();
         arr.push({
-          id: null,
-          code: `${code}_${i}`,
-          name: `child_${i + 1}`,
-          cn: 0,
-          sn: 0,
-          tn: 0,
-          ext: { OP: "1", RT: "datasource", IB: "0" },
+          uuid,
+          name: uuid,
+          ext: { ...node.$origin_data.ext },
           items: [],
         });
       }
       callback(arr);
-    }, 1000);
+    }, 200);
   }
-  private handleDrag(item: ITreeNode) {
-    (this.$refs.tree as any).dragStart(item, true);
-  }
-  private handleCheckedChange(
-    data: ITreeNode,
-    checked: boolean,
-    indeterminate: boolean
-  ) {
-    // eslint-disable-next-line no-console
-    console.log(data, checked, indeterminate);
+  private handleToggleChecked(item: ITreeNode) {
+    console.log(item);
   }
 }
 </script>
-<style>
+<style lang="scss" scoped>
 .main {
   display: flex;
   justify-content: space-between;
   padding: 10px;
 }
 .treeWrap {
-  width: 280px;
+  width: 300px;
+  .tree-name {
+    margin-left: 5px;
+    max-width: 80%;
+    line-height: 30px;
+  }
+  .tree-tag {
+    margin-left: 5px;
+    border: 1px solid;
+    padding: 0 2px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .el-icon-circle-plus-outline {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1b77ec;
+    margin-left: 5px;
+    position: absolute;
+    right: 5px;
+    display: none;
+  }
+  .tree-list-view:hover .el-icon-circle-plus-outline {
+    display: block;
+  }
 }
 </style>
