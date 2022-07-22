@@ -6,7 +6,7 @@
     @scroll="handleScroll"
   >
     <div :style="{ height: `${allVisibleHeight}px` }">
-      <div :style="{ transform: `translateY(${offset}px)` }">
+      <div :style="{ transform: `translateY(${offset}px)` }" ref="tree">
         <tree-node
           v-for="item in visibleData"
           :key="item[_props_.id]"
@@ -117,6 +117,12 @@ export default class Tree extends Vue {
   }, 50);
   public isToggleExpand = false;
   public scrollTop = 0;
+  public positions: {
+    index: number;
+    height: number;
+    top: number;
+    bottom: number;
+  }[] = [];
 
   get _props_() {
     const props = {
@@ -133,7 +139,7 @@ export default class Tree extends Vue {
   }
 
   get visibleCount(): number {
-    return Math.floor(
+    return Math.ceil(
       (this.$refs.scroller as HTMLElement).offsetHeight / this.option.itemHeight
     );
   }
@@ -203,16 +209,88 @@ export default class Tree extends Vue {
     // 使用之前记录的 this.scrollTop 重新渲染可视化数据
     this.updateVisibleData(this.scrollTop, this.flatData);
   }
+  // 二分查找
+  public binarySearch(
+    list: {
+      index: number;
+      height: number;
+      top: number;
+      bottom: number;
+    }[],
+    value: number
+  ): number {
+    let start = 0;
+    let end = list.length - 1;
+    let tempIndex = -1;
+    while (start <= end) {
+      let midIndex = parseInt(String((start + end) / 2));
+      let midValue = list[midIndex].bottom;
+      if (midValue === value) {
+        return midIndex + 1;
+      } else if (midValue < value) {
+        start = midIndex + 1;
+      } else if (midValue > value) {
+        if (tempIndex === -1 || tempIndex > midIndex) {
+          tempIndex = midIndex;
+        }
+        end = end - 1;
+      }
+    }
+    return tempIndex;
+  }
   public updateVisibleData(scrollTop = 0, flatData = this.flatData) {
-    let start =
-      Math.floor(scrollTop / this.option.itemHeight) -
-      Math.floor(this.visibleCount / 2);
+    // let start =
+    //   Math.floor(scrollTop / this.option.itemHeight) -
+    //   Math.floor(this.visibleCount / 2);
+    // start = start < 0 ? 0 : start;
+
+    let start = 0;
+    if (scrollTop > 0) {
+      start =
+        this.binarySearch(this.positions, scrollTop) -
+        Math.floor(this.visibleCount / 2);
+    }
     start = start < 0 ? 0 : start;
-    const end = start + this.visibleCount * 2;
+    let end = start + this.visibleCount * 2;
     const allVisibleData = flatData.filter((item) => item.visible);
-    this.allVisibleHeight = this.option.itemHeight * allVisibleData.length;
+    this.positions = allVisibleData.map((item, index) => {
+      return {
+        index,
+        height: this.option.itemHeight,
+        top: index * this.option.itemHeight,
+        bottom: (index + 1) * this.option.itemHeight,
+      };
+    });
+    this.allVisibleHeight = this.positions[this.positions.length - 1].bottom;
+
+    // this.allVisibleHeight = this.option.itemHeight * allVisibleData.length;
     this.visibleData = allVisibleData.slice(start, end);
-    this.offset = start * this.option.itemHeight;
+    this.$nextTick(() => {
+      let nodes = this.$refs.tree as HTMLElement;
+      const child = nodes.childNodes;
+      child.forEach((node: any, index) => {
+        let height = node.offsetHeight;
+        let oldHeight = this.positions[index].height;
+        let dValue = oldHeight - height;
+        // 存在差值
+        if (dValue) {
+          this.positions[index].bottom = this.positions[index].bottom - dValue;
+          this.positions[index].height = height;
+          for (let k = index + 1; k < this.positions.length; k++) {
+            this.positions[k].top = this.positions[k - 1].bottom;
+            this.positions[k].bottom = this.positions[k].bottom - dValue;
+          }
+        }
+      });
+    });
+
+    // this.offset = start * this.option.itemHeight;
+    if (start >= 1) {
+      this.offset = this.positions[start - 1].bottom;
+    } else {
+      this.offset = 0;
+    }
+
     // 记录滚动的高度，keep-alive 时重新展示树时，定位到之前的位置
     this.scrollTop = scrollTop;
     this.$nextTick(() => {

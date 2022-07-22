@@ -70,13 +70,13 @@ export default class TreeView extends Vue {
   private expandKeys: string[] = [];
 
   private created() {
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 500; i++) {
       const uuid = createUUID();
       mockData.items.push({
         uuid,
         id: uuid,
         code: uuid,
-        name: uuid,
+        name: i % 2 ? `测试换行测试换行测试换行测试换行测试换行测试换行` : i,
         items: [],
       });
     }

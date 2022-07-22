@@ -4,7 +4,7 @@
     :class="getNodeClass(item)"
     :style="{
       paddingLeft: item.level - 1 ? 20 * (item.level - 1) + 'px' : 0,
-      height: option.itemHeight + 'px',
+      minHeight: option.itemHeight + 'px',
     }"
     @click.stop="(e) => $emit('node-click', item, e)"
     :draggable="draggable"
