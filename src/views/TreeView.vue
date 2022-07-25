@@ -17,7 +17,7 @@
           <span class="tree-name">{{ treeNode.name }}</span>
           <i
             class="el-icon-circle-plus-outline"
-            @click.stop="handleAddTreeNode(slotProps.treeNode)"
+            @click.stop="handleAddTreeNode(treeNode)"
           ></i>
         </template>
       </Tree>
@@ -108,7 +108,7 @@ export default class TreeView extends Vue {
   private handleAddTreeNode(parentNode: ITreeNode) {
     const uuid = createUUID();
     const node = {
-      id: uuid,
+      uuid,
       name: "未命名",
     };
     (this.$refs.tree as Tree).addTreeNode(parentNode, node);

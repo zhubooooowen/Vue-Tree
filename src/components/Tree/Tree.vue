@@ -243,7 +243,6 @@ export default class Tree extends Vue {
     //   Math.floor(scrollTop / this.option.itemHeight) -
     //   Math.floor(this.visibleCount / 2);
     // start = start < 0 ? 0 : start;
-
     let start = 0;
     if (scrollTop > 0) {
       start =
@@ -262,7 +261,6 @@ export default class Tree extends Vue {
       };
     });
     this.allVisibleHeight = this.positions[this.positions.length - 1].bottom;
-
     // this.allVisibleHeight = this.option.itemHeight * allVisibleData.length;
     this.visibleData = allVisibleData.slice(start, end);
     this.$nextTick(() => {
@@ -283,14 +281,12 @@ export default class Tree extends Vue {
         }
       });
     });
-
     // this.offset = start * this.option.itemHeight;
     if (start >= 1) {
-      this.offset = this.positions[start - 1].bottom;
+      this.offset = this.positions[start + 1].bottom;
     } else {
       this.offset = 0;
     }
-
     // 记录滚动的高度，keep-alive 时重新展示树时，定位到之前的位置
     this.scrollTop = scrollTop;
     this.$nextTick(() => {
