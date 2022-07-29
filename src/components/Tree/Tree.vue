@@ -37,8 +37,9 @@
 <script lang="ts">
 import { Vue, Component, Watch, Prop } from "vue-property-decorator";
 import TreeNode from "./TreeNode.vue";
-import { isEqual, throttle } from "lodash";
+import { isEqual, throttle, uniqBy } from "lodash";
 import { flatten, findDescendants, findElders, listToTree } from "./utils";
+import ResizeObserver from "resize-observer-polyfill";
 
 const getDefaultItem = () => {
   return {
@@ -117,12 +118,7 @@ export default class Tree extends Vue {
   }, 50);
   public isToggleExpand = false;
   public scrollTop = 0;
-  public positions: {
-    index: number;
-    height: number;
-    top: number;
-    bottom: number;
-  }[] = [];
+  public positions: IPositions[] = [];
 
   get _props_() {
     const props = {
@@ -138,30 +134,37 @@ export default class Tree extends Vue {
     return { ...props, ...this.props };
   }
 
-  get visibleCount(): number {
-    return Math.ceil(
-      (this.$refs.scroller as HTMLElement).offsetHeight / this.option.itemHeight
-    );
-  }
-
   @Watch("tree", { immediate: true })
   public onTreeChange(val: any[], oldVal: any[]) {
     if (!isEqual(val, oldVal)) {
+      const { id } = this._props_;
       this.flatData = this.isFlat
-        ? ([...val] as ITreeNode[])
-        : (flatten(val, 1, null, {
-            props: this._props_,
-            defaultExpandAll: this.defaultExpandAll,
-            defaultActiveKey: this.defaultActiveKey,
-          }) as ITreeNode[]);
-      this.updateSyncKeys();
+        ? [...val]
+        : uniqBy(
+            flatten(val, 1, null, {
+              props: this._props_,
+              defaultExpandAll: this.defaultExpandAll,
+              defaultActiveKey: this.defaultActiveKey,
+            }),
+            id
+          );
+      if (this.defaultExpandAll) {
+        this.updateSyncKeys();
+      }
+      // 容器已存在，但是在外部更换了树的数据，需要清空树的信息
+      if (this.$refs.scroller) {
+        this.clearTreeInfo();
+        (this.$refs.scroller as HTMLElement).scrollTop = 0;
+      }
     }
   }
   @Watch("expandKeys", { immediate: true })
   public watchExpandKeys(val: string[]) {
     // 外部更新 expandKeys 执行此函数，手动展开收起不执行
     if (!this.isToggleExpand) {
-      this.expandKeysHandler(val);
+      this.$nextTick(() => {
+        this.expandKeysHandler(val);
+      });
     }
     this.isToggleExpand = false;
   }
@@ -202,6 +205,14 @@ export default class Tree extends Vue {
     // 确保容器高度加载完毕
     this.$nextTick(() => {
       this.handleScroll();
+      // 监听树容器高度元素
+      const element = this.$refs.scroller as HTMLElement;
+      if (element) {
+        const observer = new ResizeObserver(() => {
+          this.updateVisibleData(this.scrollTop);
+        });
+        observer.observe(element);
+      }
     });
   }
   // keep-alive 生命周期
@@ -210,15 +221,7 @@ export default class Tree extends Vue {
     this.updateVisibleData(this.scrollTop, this.flatData);
   }
   // 二分查找
-  public binarySearch(
-    list: {
-      index: number;
-      height: number;
-      top: number;
-      bottom: number;
-    }[],
-    value: number
-  ): number {
+  public binarySearch(list: IPositions[], value: number): number {
     let start = 0;
     let end = list.length - 1;
     let tempIndex = -1;
@@ -238,52 +241,158 @@ export default class Tree extends Vue {
     }
     return tempIndex;
   }
+  public updatePositions(allVisibleData: ITreeNode[]) {
+    const { id } = this._props_;
+    const { itemHeight } = this.option;
+    // 初始化
+    if (!this.positions.length) {
+      this.positions = allVisibleData.map((item, index) => {
+        return {
+          index,
+          id: item[id],
+          height: this.option.itemHeight,
+          top: index * this.option.itemHeight,
+          bottom: (index + 1) * this.option.itemHeight,
+        };
+      });
+    } else if (this.positions.length < allVisibleData.length) {
+      // 展开，添加操作
+      const positionsId = this.positions.map((position) => position.id);
+      // 未记录 positions 的 id
+      const notInPositionsIds: string[] = allVisibleData
+        .filter((item) => !positionsId.includes(item[id]))
+        .map((item) => item[id]);
+      // 未记录 positions 的 id 的第一个的索引
+      const notInPositionsFirstIndex = allVisibleData.findIndex(
+        (item) => !positionsId.includes(item[id])
+      );
+      // 未记录 positions 的 id 的第一个的索引 的上一个的 bottom
+      const bottom =
+        notInPositionsFirstIndex >= 1
+          ? this.positions[notInPositionsFirstIndex - 1].bottom
+          : 0;
+      this.positions = allVisibleData.map((item, index) => {
+        // 找到未记录的索引，使用上一个 bottom 的值，根据 itemHeight 去累加
+        const notInPositionsIdsIndex = notInPositionsIds.indexOf(item[id]);
+        if (notInPositionsIdsIndex > -1) {
+          return {
+            index,
+            id: item[id],
+            height: itemHeight,
+            top: bottom + notInPositionsIdsIndex * itemHeight,
+            bottom: bottom + (notInPositionsIdsIndex + 1) * itemHeight,
+          };
+        } else {
+          // 在未记录的数据之上，则 position 不变
+          const position = this.positions.find(
+            (position) => position.id === item[id]
+          )!;
+          if (index < notInPositionsFirstIndex) {
+            return position;
+          } else {
+            // 在未记录的数据之下，累加所有未记录数据的高度
+            return {
+              index,
+              id: item[id],
+              height: position.height,
+              top: position.top + notInPositionsIds.length * itemHeight,
+              bottom: position.bottom + notInPositionsIds.length * itemHeight,
+            };
+          }
+        }
+      });
+    } else if (this.positions.length > allVisibleData.length) {
+      // 收起，删除操作
+      const visibleDataId = allVisibleData.map((item) => item[id]);
+      // 需要删除的 positions
+      const notInVisibleData = this.positions.filter(
+        (item) => !visibleDataId.includes(item.id)
+      );
+      // 需要删除的 positions 的第一个的索引
+      const notInVisibleDataFirstIndex = this.positions.findIndex(
+        (item) => !visibleDataId.includes(item.id)
+      );
+      // 删除的全部项的高度总和
+      const height = this.positions
+        .slice(
+          notInVisibleDataFirstIndex,
+          notInVisibleDataFirstIndex + notInVisibleData.length
+        )
+        .reduce((total, cur) => total + cur.height, 0);
+      this.positions = allVisibleData.map((item, index) => {
+        // 在未记录的数据之上，则 position 不变
+        const position = this.positions.find(
+          (position) => position.id === item[id]
+        )!;
+        if (index < notInVisibleDataFirstIndex) {
+          return position;
+        } else {
+          return {
+            index,
+            id: item[id],
+            height: position.height,
+            top: position.top - height,
+            bottom: position.bottom - height,
+          };
+        }
+      });
+    }
+  }
+  public clearTreeInfo() {
+    this.positions = [];
+    this.allVisibleHeight = 0;
+    this.visibleData = [];
+    this.scrollTop = 0;
+    this.offset = 0;
+  }
   public updateVisibleData(scrollTop = 0, flatData = this.flatData) {
-    // let start =
-    //   Math.floor(scrollTop / this.option.itemHeight) -
-    //   Math.floor(this.visibleCount / 2);
-    // start = start < 0 ? 0 : start;
+    if (!this.$refs.scroller) return;
+    const _offsetHeight = (this.$refs.scroller as HTMLElement).offsetHeight;
+    const visibleCount = Math.floor(_offsetHeight / this.option.itemHeight);
     let start = 0;
     if (scrollTop > 0) {
       start =
         this.binarySearch(this.positions, scrollTop) -
-        Math.floor(this.visibleCount / 2);
+        Math.floor(visibleCount / 2);
     }
     start = start < 0 ? 0 : start;
-    let end = start + this.visibleCount * 2;
+    let end = start + visibleCount * 2;
     const allVisibleData = flatData.filter((item) => item.visible);
-    this.positions = allVisibleData.map((item, index) => {
-      return {
-        index,
-        height: this.option.itemHeight,
-        top: index * this.option.itemHeight,
-        bottom: (index + 1) * this.option.itemHeight,
-      };
-    });
+    if (!allVisibleData.length) {
+      this.clearTreeInfo();
+      return;
+    }
+    // 更新 positions 数据
+    this.updatePositions(allVisibleData);
     this.allVisibleHeight = this.positions[this.positions.length - 1].bottom;
-    // this.allVisibleHeight = this.option.itemHeight * allVisibleData.length;
     this.visibleData = allVisibleData.slice(start, end);
     this.$nextTick(() => {
       let nodes = this.$refs.tree as HTMLElement;
       const child = nodes.childNodes;
-      child.forEach((node: any, index) => {
+      child.forEach((node: any, i: number) => {
+        const index = start + i;
         let height = node.offsetHeight;
         let oldHeight = this.positions[index].height;
         let dValue = oldHeight - height;
         // 存在差值
         if (dValue) {
-          this.positions[index].bottom = this.positions[index].bottom - dValue;
-          this.positions[index].height = height;
+          this.$set(this.positions, index, {
+            ...this.positions[index],
+            bottom: this.positions[index].bottom - dValue,
+            height,
+          });
           for (let k = index + 1; k < this.positions.length; k++) {
-            this.positions[k].top = this.positions[k - 1].bottom;
-            this.positions[k].bottom = this.positions[k].bottom - dValue;
+            this.$set(this.positions, k, {
+              ...this.positions[k],
+              top: this.positions[k - 1].bottom,
+              bottom: this.positions[k].bottom - dValue,
+            });
           }
         }
       });
     });
-    // this.offset = start * this.option.itemHeight;
     if (start >= 1) {
-      this.offset = this.positions[start + 1].bottom;
+      this.offset = this.positions[start - 1].bottom;
     } else {
       this.offset = 0;
     }
@@ -430,44 +539,44 @@ export default class Tree extends Vue {
     this.dropPosition = ""; // 清空标线（拖回自身的时候）
     if (this.dragItem[id] !== item[id]) {
       const { pageY } = e;
-      const { itemHeight } = this.option;
+      const height = this.positions.find(
+        (position) => position.id === item[id]
+      )!.height;
       // 不能使用 e.target
       const { top } = (e.currentTarget as any).getBoundingClientRect();
       this.dropItemId = item[id];
       // 鼠标位于上四分之一是 prev，下四分之一是 next，中间是 inner
-      if (
-        top + 0.25 * itemHeight <= pageY &&
-        pageY <= top + 0.75 * itemHeight
-      ) {
+      if (top + 0.25 * height <= pageY && pageY <= top + 0.75 * height) {
         this.dropPosition = "inner";
-      } else if (pageY < top + 0.25 * itemHeight) {
+      } else if (pageY < top + 0.25 * height) {
         this.dropPosition = "prev";
-      } else if (pageY > top + 0.75 * itemHeight) {
+      } else if (pageY > top + 0.75 * height) {
         this.dropPosition = "next";
       }
     }
   }
   public drop(item: ITreeNode) {
     const { id } = this._props_;
-    // 禁止父拖到子孙，自己拖自己，节点拖拽到根节点上方，子拖拽到父节点内部
+    const { flatData } = this;
+    const dragItem = { ...this.dragItem };
     if (
       !this.dropPosition ||
-      this.dragItem[id] === item[id] ||
+      // 自己拖自己
+      dragItem[id] === item[id] ||
+      // 父拖到子孙
       this.dragItemDescendants.map((item) => item[id]).includes(item[id]) ||
-      (this.dropItemId === this.flatData[0][id] &&
-        this.dropPosition === "prev") ||
-      (this.dropPosition === "inner" && this.dragItem.pid === item[id])
+      // 仅有一个根节点，不允许往根节点拖拽
+      (flatData.filter((item) => item.level === 1).length === 1 &&
+        item.level === 1)
     ) {
       // 拖拽完毕清空接收项数据，消除标线
       this.dropClearData();
       return;
     }
-    const { flatData } = this;
     flatData.splice(this.dragIndex, 1 + this.dragItemDescendants.length); // 删除拖拽项及其子孙
     // 获取接收项在 flatData 里的索引
     const index = flatData.findIndex((node) => node[id] === item[id]);
     const itemDescendants = findDescendants(flatData, item, this._props_); // 获取接收项的子孙
-    const dragItem = { ...this.dragItem };
     if (this.dropPosition === "inner") {
       // 拖拽项变为接收项子节点
       dragItem.pid = item[id];
@@ -495,14 +604,15 @@ export default class Tree extends Vue {
       flatData.splice(index + 1, 0, ...this.dragItemDescendants); // 需要放到接收项的下面，所以 index + 1
     }
     flatData.forEach((node, i) => {
-      // 完善拖拽项父节点的数据
-      if (node[id] === this.dragItem.pid) {
-        // 根据子节点个数，判断是否有展开收起图标
-        const childLen = node.childLen - 1;
+      // 完善拖拽项父节点和接收项父节点的数据
+      if (node[id] === this.dragItem.pid || node[id] === item.pid) {
+        const childLen = flatData.filter(
+          (item) => item.pid === node[id]
+        ).length;
         this.$set(flatData, i, {
           ...flatData[i],
           childLen,
-          expand: childLen ? true : false,
+          expand: !!childLen,
         });
       }
       if (this.dropPosition === "inner") {
@@ -519,20 +629,11 @@ export default class Tree extends Vue {
           // 子节点要展示
           this.$set(flatData, i, { ...flatData[i], visible: true });
         }
-      } else if (this.dragLevel !== item.level) {
-        // 完善接收项父节点数据
-        if (node[id] === item.pid) {
-          // 根据子节点个数，判断是否有展开收起图标
-          this.$set(flatData, i, {
-            ...flatData[i],
-            childLen: node.childLen + 1,
-          });
-        }
       }
     });
     // 拖拽完毕清空接收项数据，消除标线
     this.dropClearData();
-    this.$emit("drop", this.flatData);
+    this.$emit("drop", item, dragItem, this.flatData);
   }
   public getAsyncData(data: ITreeNode[]) {
     const {
@@ -585,8 +686,8 @@ export default class Tree extends Vue {
       });
     this.$set(flatData, index, {
       ...flatData[index],
-      childLen: flatData[index].childLen + data.length,
-      expand: true,
+      childLen: data.length,
+      expand: !!data.length,
     });
     flatData.splice(index + 1, 0, ...arr);
   }
@@ -684,7 +785,7 @@ export default class Tree extends Vue {
   public toggleChecked(item: ITreeNode) {
     this.treeNodeCheckedHandler(item);
     this.$emit("toggle-checked", item);
-    this.updateSyncKeys();
+    this.updateCheckedSyncKeys();
   }
   public updateSyncKeys() {
     const { id, checked } = this._props_;
@@ -699,6 +800,16 @@ export default class Tree extends Vue {
       }
     });
     this.$emit("update:expandKeys", expandKeys);
+    this.$emit("update:checkedKeys", checkedKeys);
+  }
+  public updateCheckedSyncKeys() {
+    const { id, checked } = this._props_;
+    const checkedKeys: string[] = [];
+    this.flatData.forEach((node) => {
+      if (node[checked]) {
+        checkedKeys.push(node[id]);
+      }
+    });
     this.$emit("update:checkedKeys", checkedKeys);
   }
   public expandKeysHandler(expandKeys: string[]) {
@@ -773,6 +884,7 @@ export default class Tree extends Vue {
     const item: ITreeNode = {
       ...parentNode,
       ...childNode,
+      $origin_data: childNode,
       [title]: childNode[title] || "未命名",
       [id]: childNode[id] || "",
       [checkable]: parentNode[checkable] || true,

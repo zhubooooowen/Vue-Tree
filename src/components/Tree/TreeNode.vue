@@ -1,5 +1,6 @@
 <template>
   <div
+    :id="item[props.id]"
     :title="item[props.title]"
     :class="getNodeClass(item)"
     :style="{
@@ -69,12 +70,7 @@
       :disabled="item[props.disableCheckbox]"
     ></el-checkbox>
     <el-checkbox
-      v-if="
-        checkable &&
-        item[props.checkable] &&
-        !item[props.disableCheckbox] &&
-        !item[props.disableCheckboxHoverText]
-      "
+      v-if="checkable && item[props.checkable] && !item[props.disableCheckbox]"
       v-model="item[props.checked]"
       :indeterminate="item[props.indeterminate]"
       :disabled="item[props.disableCheckbox]"
@@ -86,14 +82,6 @@
       <div class="tree-list-content">
         {{ item[props.title] }}
       </div>
-      <span
-        v-if="item.dropPosition === 'prev'"
-        class="tree-list-view-line tree-list-view-line-prev"
-      ></span>
-      <span
-        v-if="item.dropPosition === 'next'"
-        class="tree-list-view-line tree-list-view-line-next"
-      ></span>
     </slot>
   </div>
 </template>
@@ -197,21 +185,6 @@ export default class TreeNode extends Vue {
       transform-origin: center;
       transform: rotateZ(0deg);
     }
-  }
-  .tree-list-view-line {
-    position: absolute;
-    width: 100%;
-    height: 2px;
-    background: #1b77ec;
-    left: 0;
-    /* 隐藏在下面，防止拖拽时获取位置不准确 */
-    z-index: -1;
-  }
-  .tree-list-view-line-prev {
-    top: -1px;
-  }
-  .tree-list-view-line-next {
-    bottom: -1px;
   }
 }
 .tree-list-view.active {

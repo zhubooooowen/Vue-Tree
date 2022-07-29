@@ -73,10 +73,7 @@
       ></el-checkbox>
       <el-checkbox
         v-if="
-          checkable &&
-          item[props.checkable] &&
-          !item[props.disableCheckbox] &&
-          !item[props.disableCheckboxHoverText]
+          checkable && item[props.checkable] && !item[props.disableCheckbox]
         "
         v-model="item[props.checked]"
         :indeterminate="item[props.indeterminate]"

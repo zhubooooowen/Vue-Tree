@@ -6,7 +6,7 @@
     @scroll="handleScroll"
   >
     <div :style="{ height: `${allVisibleHeight}px` }">
-      <div :style="{ transform: `translateY(${offset}px)` }">
+      <div :style="{ transform: `translateY(${offset}px)` }" ref="tree">
         <tree-node
           v-for="item in visibleData"
           :key="item[props.id]"

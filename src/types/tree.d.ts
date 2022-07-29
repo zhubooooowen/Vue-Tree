@@ -28,3 +28,11 @@ interface ITreeNode {
   hasAsyncChildren?: number;
   [key: string]: any;
 }
+
+interface IPositions {
+  index: number;
+  id: string;
+  height: number;
+  top: number;
+  bottom: number;
+}
