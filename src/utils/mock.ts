@@ -19,7 +19,6 @@ export const mockData: any = {
           ext: {
             OP: "0",
           },
-          strategyBean: null,
         },
         {
           code: "1",
@@ -30,24 +29,21 @@ export const mockData: any = {
           ext: {
             OP: "0",
           },
-          strategyBean: null,
         },
       ],
       ext: {
         OP: "0",
       },
-      strategyBean: null,
     },
     {
       code: "zbwtest_menu_test",
-      name: "测试菜单测试菜单测试菜单测试菜单测试菜单测试菜单测试菜单测试菜单测试菜单",
+      name: "测试菜单",
       id: "zbwtest_menu_test",
       status: 1,
       items: [],
       ext: {
         OP: "1",
       },
-      strategyBean: null,
     },
     {
       code: "zbwtest_api_test_1",
@@ -64,7 +60,6 @@ export const mockData: any = {
           ext: {
             OP: "0",
           },
-          strategyBean: null,
         },
         {
           code: "zbwtest_api_test_1_1",
@@ -75,13 +70,11 @@ export const mockData: any = {
           ext: {
             OP: "1",
           },
-          strategyBean: null,
         },
       ],
       ext: {
         OP: "1",
       },
-      strategyBean: null,
     },
   ],
   ext: {
@@ -89,7 +82,6 @@ export const mockData: any = {
     RT: "api",
     systemName: "朱博文测试专用",
   },
-  strategyBean: null,
 };
 
 export const mockData2: any = {
@@ -113,13 +105,11 @@ export const mockData2: any = {
           ext: {
             OP: "1",
           },
-          strategyBean: null,
         },
       ],
       ext: {
         OP: "1",
       },
-      strategyBean: null,
     },
     {
       code: "zbwtest_api_test2_2",
@@ -130,7 +120,6 @@ export const mockData2: any = {
       ext: {
         OP: "1",
       },
-      strategyBean: null,
     },
   ],
   ext: {
@@ -138,13 +127,12 @@ export const mockData2: any = {
     RT: "api",
     systemName: "朱博文测试专用",
   },
-  strategyBean: null,
 };
 
 export const mockData3: any = {
-  code: "MOSHU::DASHBOARD::6239",
-  name: "tt测试菜单报表绑定bug用dashboard",
-  id: "MOSHU::DASHBOARD::6239",
+  code: "zbwtest_api_test3",
+  name: "朱博文测试3",
+  id: "zbwtest_api_test3",
   status: 1,
   items: [
     {
@@ -156,7 +144,6 @@ export const mockData3: any = {
       ext: {
         OP: "1",
       },
-      strategyBean: null,
     },
     {
       code: "34",
@@ -167,7 +154,6 @@ export const mockData3: any = {
       ext: {
         OP: "0",
       },
-      strategyBean: null,
     },
     {
       code: "32",
@@ -178,7 +164,6 @@ export const mockData3: any = {
       ext: {
         OP: "0",
       },
-      strategyBean: null,
     },
   ],
   ext: {
@@ -186,5 +171,4 @@ export const mockData3: any = {
     RT: "Dashboard",
     systemName: "魔数",
   },
-  strategyBean: null,
 };

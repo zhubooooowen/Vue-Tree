@@ -87,7 +87,7 @@ export default class Tree extends Vue {
   public checkable!: boolean; // 是否展示选择框
   @Prop(Boolean)
   public defaultExpandAll!: boolean; // 初始化是否展开全部节点
-  @Prop([Number, String])
+  @Prop(String)
   public defaultActiveKey!: string; // 初始化默认选中哪个节点
   @Prop(Array)
   public expandKeys!: string[]; // 展开项，受控属性
@@ -116,7 +116,6 @@ export default class Tree extends Vue {
   public handleScroll = throttle(() => {
     this.updateVisibleData((this.$refs.scroller as HTMLElement).scrollTop);
   }, 50);
-  public isToggleExpand = false;
   public scrollTop = 0;
   public positions: IPositions[] = [];
 
@@ -143,13 +142,15 @@ export default class Tree extends Vue {
         : uniqBy(
             flatten(val, 1, null, {
               props: this._props_,
-              defaultExpandAll: this.defaultExpandAll,
-              defaultActiveKey: this.defaultActiveKey,
+              defaultExpandAll: this.defaultExpandAll || false,
+              defaultActiveKey: this.defaultActiveKey || "",
+              expandKeys: this.expandKeys || [],
+              checkedKeys: this.checkedKeys || [],
             }),
             id
           );
       if (this.defaultExpandAll) {
-        this.updateSyncKeys();
+        this.updateExpandSyncKeys();
       }
       // 容器已存在，但是在外部更换了树的数据，需要清空树的信息
       if (this.$refs.scroller) {
@@ -157,16 +158,6 @@ export default class Tree extends Vue {
         (this.$refs.scroller as HTMLElement).scrollTop = 0;
       }
     }
-  }
-  @Watch("expandKeys", { immediate: true })
-  public watchExpandKeys(val: string[]) {
-    // 外部更新 expandKeys 执行此函数，手动展开收起不执行
-    if (!this.isToggleExpand) {
-      this.$nextTick(() => {
-        this.expandKeysHandler(val);
-      });
-    }
-    this.isToggleExpand = false;
   }
   @Watch("flatData")
   public onFlatDataChange(val: ITreeNode[]) {
@@ -403,14 +394,13 @@ export default class Tree extends Vue {
     });
   }
   public toggleExpand(item: ITreeNode) {
-    this.isToggleExpand = true;
     const isExpand = item.expand;
     if (isExpand) {
       this.collapse(item); // 折叠
     } else {
       this.expand(item); // 展开
     }
-    this.updateSyncKeys();
+    this.updateExpandSyncKeys();
   }
   public expand(item: ITreeNode) {
     const { id } = this._props_;
@@ -662,16 +652,17 @@ export default class Tree extends Vue {
     data &&
       data.length &&
       data.forEach((item: ITreeNode) => {
+        const itemDisableCheckbox =
+          disableCheckbox in item ? item[disableCheckbox] : false;
         const newItem: ITreeNode = {
           $origin_data: item,
           [title]: title in item ? item[title] : "",
           [id]: id in item ? item[id] : "",
           [checkable]: checkable in item ? item[checkable] : true,
           // 继承父节点勾选状态
-          [checked]: this.asyncItem[checked],
+          [checked]: itemDisableCheckbox ? false : this.asyncItem[checked],
           [indeterminate]: false,
-          [disableCheckbox]:
-            disableCheckbox in item ? item[disableCheckbox] : false,
+          [disableCheckbox]: itemDisableCheckbox,
           [disableCheckboxHoverText]:
             disableCheckboxHoverText in item
               ? item[disableCheckboxHoverText]
@@ -787,20 +778,15 @@ export default class Tree extends Vue {
     this.$emit("toggle-checked", item);
     this.updateCheckedSyncKeys();
   }
-  public updateSyncKeys() {
-    const { id, checked } = this._props_;
+  public updateExpandSyncKeys() {
+    const { id } = this._props_;
     const expandKeys: string[] = [];
-    const checkedKeys: string[] = [];
     this.flatData.forEach((node) => {
       if (node.expand) {
         expandKeys.push(node[id]);
       }
-      if (node[checked]) {
-        checkedKeys.push(node[id]);
-      }
     });
     this.$emit("update:expandKeys", expandKeys);
-    this.$emit("update:checkedKeys", checkedKeys);
   }
   public updateCheckedSyncKeys() {
     const { id, checked } = this._props_;
@@ -811,30 +797,6 @@ export default class Tree extends Vue {
       }
     });
     this.$emit("update:checkedKeys", checkedKeys);
-  }
-  public expandKeysHandler(expandKeys: string[]) {
-    if (expandKeys && expandKeys.length) {
-      const { id } = this._props_;
-      const allEldersKeys: string[] = [];
-      expandKeys.forEach((key) => {
-        const item = this.getTreeNode(key);
-        if (item) {
-          const itemElders = this.getElders(item);
-          itemElders.forEach((node) => {
-            !allEldersKeys.includes(node[id]) && allEldersKeys.push(node[id]);
-          });
-          if (!item.expand && item.childLen) {
-            this.toggleExpand(item);
-          }
-        }
-      });
-      allEldersKeys.forEach((key) => {
-        const item = this.getTreeNode(key);
-        if (item && !item.expand) {
-          this.toggleExpand(item);
-        }
-      });
-    }
   }
 
   // 以下是对外暴露的 API 方法

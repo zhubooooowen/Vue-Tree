@@ -2,9 +2,11 @@ import { cloneDeep } from "lodash";
 
 interface IOption {
   props: IProps;
+  expandKeys: string[];
+  checkedKeys: string[];
+  defaultExpandAll: boolean;
+  defaultActiveKey: string;
   extProps?: string[];
-  defaultExpandAll?: boolean;
-  defaultActiveKey?: string;
 }
 
 const defaultDataHandler = (item: any, option: IOption) => {
@@ -26,6 +28,26 @@ const defaultDataHandler = (item: any, option: IOption) => {
   }
 };
 
+const getParentStatus = (children: ITreeNode[], option: IOption) => {
+  const {
+    props: { id, checked },
+    expandKeys,
+  } = option;
+  let checkedLen = 0;
+  let expandLen = 0;
+  for (let i = 0; i < children.length; i++) {
+    const item = children[i];
+    if (item[checked]) checkedLen++;
+    if (expandKeys.includes(item[id]) || item.expand || item.visible)
+      expandLen++;
+  }
+  const everyChecked = checkedLen === children.length;
+  const someChecked = checkedLen <= children.length && checkedLen > 0;
+  // 没有全部选择，或者全部是半选，父节点为半选
+  const indeterminate = someChecked && !everyChecked;
+  return { checked: everyChecked, indeterminate, expand: expandLen > 0 };
+};
+
 /**
  * 树结构拍平
  * @param {array} list 树的数据
@@ -38,7 +60,9 @@ export const flatten = (
   data: any[],
   level = 1,
   pid: string | null,
-  option: IOption
+  option: IOption,
+  parentChecked?: boolean,
+  parentExpand?: boolean
 ) => {
   const arr: ITreeNode[] = [];
   const {
@@ -53,33 +77,68 @@ export const flatten = (
       disableCheckboxHoverText,
     },
     extProps,
+    expandKeys,
+    checkedKeys,
   } = option;
   data.forEach((item: any) => {
+    // 父节点勾选，子节点一定勾选
+    // checkedKeys 包含该节点，节点勾选
+    const itemChecked =
+      parentChecked || checkedKeys.includes(item[id])
+        ? true
+        : checked in item
+        ? item[checked]
+        : false;
+    const childLen = item[children] ? item[children].length : 0;
+    // expandKeys 包含该节点，且该节点有子节点，节点展开
+    const itemExpand = expandKeys.includes(item[id]) && childLen;
     const newItem: ITreeNode = {
       // 对原数据的地址引用，外部可直接更改源数据
       $origin_data: item,
       [title]: title in item ? item[title] : "",
       [id]: id in item ? item[id] : "",
       [checkable]: checkable in item ? item[checkable] : true,
-      [checked]: checked in item ? item[checked] : false, // 默认展示勾选框
+      [checked]: itemChecked,
+      // 默认展示勾选框
       [indeterminate]: indeterminate in item ? item[indeterminate] : false,
       [disableCheckbox]:
         disableCheckbox in item ? item[disableCheckbox] : false,
       [disableCheckboxHoverText]:
         disableCheckboxHoverText in item ? item[disableCheckboxHoverText] : "",
       level,
-      expand: false,
-      visible: level === 1,
+      expand: itemExpand,
+      // 父节点展开，则子节点展示
+      // 自身节点展开，则自己展示
+      visible: level === 1 || parentExpand || itemExpand || false,
       pid,
-      childLen: item[children] ? item[children].length : 0,
+      childLen,
     };
     extProps &&
       extProps.forEach((key) => {
         newItem[key] = item[key];
       });
-    defaultDataHandler(newItem, option);
-    arr.push(newItem);
-    arr.push(...flatten(item[children] || [], level + 1, item[id], option));
+    if (item[children] && item[children].length) {
+      const newItemChildren = flatten(
+        item[children] || [],
+        level + 1,
+        item[id],
+        option,
+        itemChecked,
+        itemExpand
+      );
+      // 通过子节点的状态，判断父节点的勾选和展开状态
+      const parentStatus = getParentStatus(newItemChildren, option);
+      defaultDataHandler(newItem, option);
+      arr.push({
+        ...newItem,
+        [checked]: parentStatus.checked,
+        [indeterminate]: parentStatus.indeterminate,
+        expand: parentStatus.expand,
+      });
+      arr.push(...newItemChildren);
+    } else {
+      arr.push(newItem);
+    }
   });
   return arr;
 };

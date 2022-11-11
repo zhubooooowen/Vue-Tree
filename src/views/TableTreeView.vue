@@ -7,8 +7,8 @@
       :option="option"
       checkable
       :default-checked-keys="defaultCheckedKeys"
-      :default-indeterminate-keys="defaultIndeterminateKeys"
       :expand-keys.sync="expandKeys"
+      :checked-keys.sync="checkedKeys"
       :load-data="handleLoadData"
       :loading="loading"
       @page-change="handlePageChange"
@@ -87,12 +87,11 @@ export default class TableTreeView extends Vue {
   private props = {
     title: "name",
     children: "items",
-    id: "uuid",
   };
   private tree: any[] = [];
   private defaultCheckedKeys: string[] = [];
-  private defaultIndeterminateKeys: string[] = [];
   private expandKeys: string[] = [];
+  private checkedKeys: string[] = [];
   private searchModalVisible = false;
   private searchTreeIndex = 0;
   private searchTreeNodeName = "";
@@ -108,30 +107,22 @@ export default class TableTreeView extends Vue {
   }
   private setTreeData(treeData: any[][]) {
     this.tree = treeData.map((data) => this.formatTreeData(data));
-    this.$nextTick(() => {
-      this.expandKeys = this.tree.map((data) => data[0].uuid);
-    });
   }
   private getParentStatus(children: any) {
-    let checkedLen = 0;
-    let someIndeterminate = false;
+    let statusLen = 0;
     for (let i = 0; i < children.length; i++) {
       const item = children[i];
-      if (item.checked) checkedLen++;
-      if (item.indeterminate) {
-        someIndeterminate = true;
-      }
+      if (item.status === 1) statusLen++;
     }
-    const everyChecked = checkedLen === children.length;
-    const someChecked = checkedLen <= children.length && checkedLen > 0;
+    const everyChecked = statusLen === children.length;
+    const someChecked = statusLen <= children.length && statusLen > 0;
     const status = everyChecked ? 1 : 0;
     // 没有全部选择，或者全部是半选，父节点为半选
-    const indeterminate = (someChecked && !everyChecked) || someIndeterminate;
+    const indeterminate = someChecked && !everyChecked;
     return { status, indeterminate };
   }
   private formatTreeData(treeData: any[]) {
     return treeData.map((node: any) => {
-      node.uuid = createUUID();
       node.checkable = true;
       node.disableCheckbox = false;
       node.disableCheckboxHoverText = "";
@@ -140,21 +131,27 @@ export default class TableTreeView extends Vue {
         node.disableCheckbox = true;
         node.disableCheckboxHoverText = "禁用";
       }
-      let checked = !!node.status;
-      let indeterminate = false;
       let items: any = [];
       if (node.items && node.items.length) {
         items = this.formatTreeData(node.items);
         // 回溯，根据子节点的状态渲染父节点的状态
         const statusObj = this.getParentStatus(items);
-        checked = !!statusObj.status;
-        indeterminate = statusObj.indeterminate;
+        if (statusObj.status) {
+          this.checkedKeys.push(node.id);
+          this.expandKeys.push(node.id);
+        }
+        if (statusObj.indeterminate) {
+          this.expandKeys.push(node.id);
+        }
+      } else {
+        if (node.status) {
+          this.checkedKeys.push(node.id);
+          this.expandKeys.push(node.id);
+        }
       }
       return {
         ...node,
         items,
-        checked,
-        indeterminate,
       };
     });
   }
@@ -164,7 +161,6 @@ export default class TableTreeView extends Vue {
       for (let i = 0; i < 2; i++) {
         const uuid = createUUID();
         arr.push({
-          uuid,
           id: uuid,
           code: uuid,
           name: `child_${i + 1}`,
@@ -175,7 +171,6 @@ export default class TableTreeView extends Vue {
           disableCheckboxHoverText: "",
           ext: { ...node.$origin_data.ext },
           items: [],
-          strategyBean: null,
         });
       }
       callback(arr);

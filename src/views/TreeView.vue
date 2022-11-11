@@ -61,7 +61,6 @@ export default class TreeView extends Vue {
   private props = {
     title: "name",
     children: "items",
-    id: "uuid",
   };
   private tree: any[] = [];
   private tree2: any[] = [];
@@ -106,19 +105,9 @@ export default class TreeView extends Vue {
       });
     }
     const treeData = [mockData];
-    this.formatTreeData(treeData);
-    this.defaultActiveKey = treeData[0].uuid;
-    this.expandKeys = [treeData[0].uuid];
+    this.defaultActiveKey = treeData[0].id;
+    this.expandKeys = [treeData[0].id];
     return treeData;
-  }
-
-  private formatTreeData(treeData: any[]) {
-    treeData.forEach((node: any) => {
-      node.uuid = createUUID();
-      if (node.items && node.items.length) {
-        this.formatTreeData(node.items);
-      }
-    });
   }
 
   private setNodeClass(node: any) {
@@ -169,7 +158,8 @@ export default class TreeView extends Vue {
       for (let i = 0; i < 2; i++) {
         const uuid = createUUID();
         arr.push({
-          uuid,
+          id: uuid,
+          code: uuid,
           name: uuid,
           ext: { ...node.$origin_data.ext },
           items: [],

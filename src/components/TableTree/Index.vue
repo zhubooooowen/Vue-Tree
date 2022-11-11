@@ -70,6 +70,10 @@ export default class TableTree extends Vue {
   public defaultExpandAll!: boolean; // 初始化是否展开全部节点
   @Prop([Number, String])
   public defaultActiveKey!: string; // 初始化默认选中哪个节点
+  @Prop(Array)
+  public expandKeys!: string[]; // 展开项，受控属性
+  @Prop(Array)
+  public checkedKeys!: string[]; // 选择项，受控属性
 
   public flatData: ITreeNode[] = [];
 
@@ -95,8 +99,10 @@ export default class TableTree extends Vue {
         flatData.push(
           ...flatten(item, 1, null, {
             props: this._props_,
-            defaultExpandAll: this.defaultExpandAll,
-            defaultActiveKey: this.defaultActiveKey,
+            defaultExpandAll: this.defaultExpandAll || false,
+            defaultActiveKey: this.defaultActiveKey || "",
+            expandKeys: this.expandKeys || [],
+            checkedKeys: this.checkedKeys || [],
           })
         );
       });
