@@ -106,7 +106,7 @@ export default class TableTreeView extends Vue {
     this.loading = false;
   }
   private setTreeData(treeData: any[][]) {
-    this.tree = treeData.map((data) => this.formatTreeData(data));
+    this.tree = treeData.map((data) => this.formatTreeData(data)[0]);
   }
   private getParentStatus(children: any) {
     let statusLen = 0;

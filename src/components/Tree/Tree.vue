@@ -17,6 +17,7 @@
           :checkable="!draggable && checkable"
           :load-data="!draggable && loadData"
           :node-class="nodeClass"
+          :treeDisabled="treeDisabled"
           @node-click="handleClick"
           @drag-start="dragStart"
           @drag-over="dragOver"
@@ -94,11 +95,11 @@ export default class Tree extends Vue {
   @Prop(Array)
   public checkedKeys!: string[]; // 选择项，受控属性
   @Prop(Boolean)
-  public isFlat!: boolean; // 是否直接传入拍平的数据
-  @Prop(Boolean)
   public checkStrictly!: boolean; // 勾选节点复选框是否完全受控（true 时父子节点选中状态不再关联）
   @Prop([String, Function])
   public nodeClass!: (item: ITreeNode) => string | string; // 节点的 class
+  @Prop(Boolean)
+  public treeDisabled!: boolean; // 是否整棵树禁用
 
   public offset = 0; // translateY偏移量
   public allVisibleHeight = 0; // 树的展示数据的总高度
@@ -118,6 +119,9 @@ export default class Tree extends Vue {
   }, 50);
   public scrollTop = 0;
   public positions: IPositions[] = [];
+  // 是否手动更新勾选和展开，手动更新不重新渲染，外部更新重新渲染
+  public isToggleChecked = false;
+  public isToggleExpand = false;
 
   get _props_() {
     const props = {
@@ -137,18 +141,16 @@ export default class Tree extends Vue {
   public onTreeChange(val: any[], oldVal: any[]) {
     if (!isEqual(val, oldVal)) {
       const { id } = this._props_;
-      this.flatData = this.isFlat
-        ? [...val]
-        : uniqBy(
-            flatten(val, 1, null, {
-              props: this._props_,
-              defaultExpandAll: this.defaultExpandAll || false,
-              defaultActiveKey: this.defaultActiveKey || "",
-              expandKeys: this.expandKeys || [],
-              checkedKeys: this.checkedKeys || [],
-            }),
-            id
-          );
+      this.flatData = uniqBy(
+        flatten(val, 1, null, {
+          props: this._props_,
+          defaultExpandAll: this.defaultExpandAll || false,
+          defaultActiveKey: this.defaultActiveKey || "",
+          expandKeys: this.expandKeys || [],
+          checkedKeys: this.checkedKeys || [],
+        }),
+        id
+      );
       if (this.defaultExpandAll) {
         this.updateExpandSyncKeys();
       }
@@ -162,6 +164,36 @@ export default class Tree extends Vue {
   @Watch("flatData")
   public onFlatDataChange(val: ITreeNode[]) {
     this.updateVisibleData((this.$refs.scroller as HTMLElement).scrollTop, val); // 重新渲染可视化数据
+  }
+  @Watch("checkedKeys")
+  public watchCheckedKeys(val: string[]) {
+    // 外部更新 checkedKeys
+    if (!this.isToggleChecked) {
+      this.flatData = flatten(this.tree, 1, null, {
+        props: this._props_,
+        defaultExpandAll: false,
+        defaultActiveKey: val[val.length - 1] || this.defaultActiveKey || "",
+        expandKeys: this.expandKeys || [],
+        checkedKeys: val,
+      });
+    }
+    this.isToggleChecked = false;
+  }
+  @Watch("expandKeys")
+  public watchExpandKeys(val: string[]) {
+    // 外部更新 checkedKeys
+    if (!this.isToggleExpand) {
+      // 清空 position 信息，后续重新生成
+      this.positions = [];
+      this.flatData = flatten(this.tree, 1, null, {
+        props: this._props_,
+        defaultExpandAll: false,
+        defaultActiveKey: val[val.length - 1] || this.defaultActiveKey || "",
+        expandKeys: val,
+        checkedKeys: this.checkedKeys || [],
+      });
+    }
+    this.isToggleExpand = false;
   }
   @Watch("dropPosition")
   public watchDropPosition(val: string) {
@@ -400,7 +432,6 @@ export default class Tree extends Vue {
     } else {
       this.expand(item); // 展开
     }
-    this.updateExpandSyncKeys();
   }
   public expand(item: ITreeNode) {
     const { id } = this._props_;
@@ -448,6 +479,7 @@ export default class Tree extends Vue {
           }
         }
       }
+      this.updateExpandSyncKeys();
     }
   }
   public collapse(item: ITreeNode) {
@@ -472,6 +504,7 @@ export default class Tree extends Vue {
         }
       }
     }
+    this.updateExpandSyncKeys();
   }
   public handleClick(item: ITreeNode, e: Event) {
     const { id } = this._props_;
@@ -681,6 +714,7 @@ export default class Tree extends Vue {
       expand: !!data.length,
     });
     flatData.splice(index + 1, 0, ...arr);
+    this.updateExpandSyncKeys();
   }
   public treeNodeCheckedHandler(item: ITreeNode) {
     const { id, checked, indeterminate, disableCheckbox } = this._props_;
@@ -705,7 +739,10 @@ export default class Tree extends Vue {
         if (flatData[i].level <= item.level) {
           break;
         }
-        if (!flatData[i][disableCheckbox]) {
+        if (
+          (item[checked] && !flatData[i][disableCheckbox]) ||
+          !item[checked]
+        ) {
           this.$set(flatData, i, {
             ...flatData[i],
             [checked]: item[checked],
@@ -782,11 +819,12 @@ export default class Tree extends Vue {
     const { id } = this._props_;
     const expandKeys: string[] = [];
     this.flatData.forEach((node) => {
-      if (node.expand) {
+      if (node.expand && node.visible) {
         expandKeys.push(node[id]);
       }
     });
     this.$emit("update:expandKeys", expandKeys);
+    this.isToggleExpand = true;
   }
   public updateCheckedSyncKeys() {
     const { id, checked } = this._props_;
@@ -797,6 +835,7 @@ export default class Tree extends Vue {
       }
     });
     this.$emit("update:checkedKeys", checkedKeys);
+    this.isToggleChecked = true;
   }
 
   // 以下是对外暴露的 API 方法

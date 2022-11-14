@@ -14,10 +14,8 @@
     </div>
     <Tree
       ref="tree"
-      isFlat
-      :tree="flatData"
+      :tree="tree"
       :option="option"
-      :props="_props_"
       v-bind="$attrs"
       v-on="$listeners"
     >
@@ -41,10 +39,8 @@
   </div>
 </template>
 <script lang="ts">
-import { Component, Vue, Prop, Watch } from "vue-property-decorator";
+import { Component, Vue, Prop } from "vue-property-decorator";
 import Tree from "@/components/TableTree/Tree/Tree.vue";
-import { flatten } from "@/components/Tree/utils";
-import { isEqual } from "lodash";
 
 @Component({
   components: {
@@ -62,53 +58,8 @@ export default class TableTree extends Vue {
   private tree!: any[][];
   @Prop(Object)
   public option!: IOption;
-  @Prop(Object)
-  public props!: IProps;
   @Prop(Boolean)
   loading!: boolean;
-  @Prop(Boolean)
-  public defaultExpandAll!: boolean; // 初始化是否展开全部节点
-  @Prop([Number, String])
-  public defaultActiveKey!: string; // 初始化默认选中哪个节点
-  @Prop(Array)
-  public expandKeys!: string[]; // 展开项，受控属性
-  @Prop(Array)
-  public checkedKeys!: string[]; // 选择项，受控属性
-
-  public flatData: ITreeNode[] = [];
-
-  get _props_() {
-    const props = {
-      title: "title",
-      children: "children",
-      id: "id",
-      checkable: "checkable",
-      checked: "checked",
-      indeterminate: "indeterminate",
-      disableCheckbox: "disableCheckbox",
-      disableCheckboxHoverText: "disableCheckboxHoverText",
-    };
-    return { ...props, ...this.props };
-  }
-
-  @Watch("tree", { immediate: true })
-  public onTreeChange(val: any[][], oldVal: any[][]) {
-    if (!isEqual(val, oldVal)) {
-      const flatData: ITreeNode[] = [];
-      val.forEach((item) => {
-        flatData.push(
-          ...flatten(item, 1, null, {
-            props: this._props_,
-            defaultExpandAll: this.defaultExpandAll || false,
-            defaultActiveKey: this.defaultActiveKey || "",
-            expandKeys: this.expandKeys || [],
-            checkedKeys: this.checkedKeys || [],
-          })
-        );
-      });
-      this.flatData = flatData;
-    }
-  }
 
   public getTreeRef() {
     return this.$refs.tree as Tree;

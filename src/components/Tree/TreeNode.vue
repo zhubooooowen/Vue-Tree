@@ -73,7 +73,7 @@
       v-if="checkable && item[props.checkable] && !item[props.disableCheckbox]"
       v-model="item[props.checked]"
       :indeterminate="item[props.indeterminate]"
-      :disabled="item[props.disableCheckbox]"
+      :disabled="treeDisabled"
       @click.native="stopDefault($event)"
       @change="$emit('toggle-checked', item)"
     ></el-checkbox>
@@ -109,6 +109,8 @@ export default class TreeNode extends Vue {
   ) => void | boolean; // 异步加载
   @Prop([String, Function])
   public nodeClass!: (item: ITreeNode) => string | string; // 节点的 class
+  @Prop(Boolean)
+  public treeDisabled!: boolean; // 是否整棵树禁用
 
   public stopDefault(e: Event) {
     // 阻止 checkout 冒泡

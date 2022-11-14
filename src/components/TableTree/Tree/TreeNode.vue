@@ -77,7 +77,7 @@
         "
         v-model="item[props.checked]"
         :indeterminate="item[props.indeterminate]"
-        :disabled="item[props.disableCheckbox]"
+        :disabled="treeDisabled"
         @click.native="stopDefault($event)"
         @change="$emit('toggle-checked', item)"
       ></el-checkbox>

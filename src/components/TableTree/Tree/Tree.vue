@@ -9,12 +9,14 @@
       <div :style="{ transform: `translateY(${offset}px)` }" ref="tree">
         <tree-node
           v-for="item in visibleData"
-          :key="item[props.id]"
+          :key="item[_props_.id]"
           :item="item"
-          :props="props"
+          :props="_props_"
           :option="option"
           :checkable="checkable"
           :load-data="loadData"
+          :node-class="nodeClass"
+          :treeDisabled="treeDisabled"
           @toggle-expand="toggleExpand"
           @toggle-checked="toggleChecked"
         >
